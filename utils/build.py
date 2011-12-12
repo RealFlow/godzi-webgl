@@ -59,6 +59,7 @@ READYMAP_DATA = [
 		"readymap/data/GeoRSSLayer.js",
 		"readymap/data/GeoRSSReader.js",
 		"readymap/data/HeatMap.js",
+		"readymap/data/Building.js",
 		"readymap/data/Map.js",
 		"readymap/data/TMSImageLayer.js",
 		"readymap/data/TMSElevationLayer.js",

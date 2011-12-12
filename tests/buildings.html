@@ -1,0 +1,132 @@
+﻿<html>
+<head>
+<title>ReadyMap WebGL</title>
+
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+<script type="text/javascript" src="../js/jquery/jquery-1.4.2.js"></script>
+<script type="text/javascript" src="../build/readymap-debug-0.0.1.js"></script>
+
+<link href="demo.css" rel="Stylesheet" type="text/css"></link>
+<link href="../css/readymap.css" rel="Stylesheet" type="text/css"></link>
+
+
+<script type="text/javascript">
+
+    var mapView;
+
+    ReadyMap.init(function() {											
+        var map = new ReadyMap.Map(); 									
+        map.addImageLayer(new ReadyMap.TMSImageLayer(					
+			{															
+            name: "Landsat",
+            url: "http://readymap.org/readymap/tiles/1.0.0/22/",		
+            tmsType: "google"
+			}
+		));
+
+
+        // create a view tied to a page element:
+        var size = ReadyMap.getWindowSize();							
+        var headerHeight = jQuery('#header').height();					
+        size.h -= headerHeight;											
+
+        mapView = new ReadyMap.MapView("3DView", size, map);			
+
+        //Add some controls
+        var zoom = new ReadyMap.Controls.Zoom(mapView, "ViewContainer");
+																		
+        var pan = new ReadyMap.Controls.Pan(mapView, "ViewContainer");	
+
+        // display the Lat/Long:
+        mapView.addFrameEndCallback(function() {						
+            var viewMatrix = mapView.viewer.view.getViewMatrix();
+            viewMatrix = osg.Matrix.inverse(viewMatrix);
+            var eye = [];
+            osg.Matrix.getTrans(viewMatrix, eye);						
+            var lla = map.profile.ellipsoid.ecef2lla(eye);				//return [lon, lat, alt];
+            lla[0] = Math.rad2deg(lla[0]);								//lon
+            lla[1] = Math.rad2deg(lla[1]);								//lat
+            jQuery("#Coords").html(										
+                "Lat: " + lla[1]/*.toFixed(2)*/ + "\u00B0" + "  Lon = " + lla[0]/*.toFixed(2)*/ + "\u00B0" + "Alt: " + lla[2].toFixed(2) +" m" +"<br/>" + //JS Number Class-> number.toFixed(x)= Formats a number with x numbers of digits after the decimal point
+                "Azim: " + Math.rad2deg(mapView.viewer.manipulator.localAzim).toFixed(1) + "\u00B0" +
+                "Pitch:" + Math.rad2deg(mapView.viewer.manipulator.localPitch).toFixed(1) + "\u00B0" + "<br/>" +
+                "Tiles: " + map.drawListSize + "<br/>" + 
+				"Raton MouseUP: " + mapView.viewer.manipulator.buttonup + "<br/>" +
+				"Raton ClientX: " + mapView.viewer.manipulator.clientX + "<br/>" +
+				"Raton ClientY: " + mapView.viewer.manipulator.clientY + "<br/>" );
+        });
+		
+		$.ajax({													
+            
+			url: "data/buildings.json",		
+            processData: true,
+            dataType: "json",
+            success: function(data) {
+			
+				length = data.length;
+				console.log('numero de edificios: ' + data.length);
+			
+					//duplicate each vertex and place it in a predefined height
+					function extruding(index){
+
+							var h = data[index].altura;
+							var length2 = data[index].vertices.length * 2 ;
+														
+							for(var j = 0; j < length2; j++){
+							
+								data[index].vertices[j].altura = h;
+								var temp = {lon: data[index].vertices[j].lon,
+											lat: data[index].vertices[j].lat,
+											altura: 0
+											};
+								data[index].vertices.splice(j+1,0, temp);
+								
+								j++;
+							}	
+					}
+		
+				for(var index=0; index<data.length ;index++){
+				extruding(index);
+                //var node = new ReadyMap.HeatMapNode(map, data, index);
+				var node = new ReadyMap.BuildingNode(map, data, index);
+                mapView.root.addChild(node);
+
+				}
+			}
+		
+		
+            ,
+            error: function(x, y, z) {
+                alert(x.responseText);
+            }
+        });
+    });
+
+function gotoValencia() {
+        mapView.viewer.getManipulator().setViewpoint(39.45599538921077,  -0.388229670237747, 2212, 35, -39.5, 6000, 5);
+    }
+
+
+
+</script>
+</head>
+
+<body>
+  <div id="header">
+    <a href="http://pelicanmapping.com" border="0"><img id="logo" align="right" height="50" src="http://pelicanmapping.com/wp-content/uploads/2011/02/pelican-logo-262x93-light.png" /></a>
+    
+  </div>
+  <div id="ViewContainer">
+    <canvas id="3DView"></canvas>
+  </div>
+  <div id="Help">
+    <ul>
+	  <li><a href="#" onclick="gotoValencia();">Fly to Valencia</a></li>
+      <li><a href="#" onclick="mapView.home();">reset view</a></li>
+    </ul>
+  </div>
+  <div id="Coords">
+  </div>
+</body>
+
+</html>
