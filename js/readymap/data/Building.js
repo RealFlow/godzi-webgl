@@ -5,7 +5,7 @@
  * 
  * License: LGPL
 */
-ReadyMap.BuildingNode = function(map, data, index) {
+ReadyMap.BuildingNode = function(map, data, index, polOrLinOrPoi) {
 
     osg.Node.call(this);
 	var height_weighting = 10;	//vertical exaggeration
@@ -23,7 +23,8 @@ ReadyMap.BuildingNode = function(map, data, index) {
     }
 
 
-	this.build(data,index,height_weighting);
+	this.build(data,index,height_weighting, polOrLinOrPoi);
+	this.getBound();
 };
 
 
@@ -60,20 +61,34 @@ ReadyMap.BuildingNode.prototype = osg.objectInehrit(osg.Node.prototype, {
         return c;
     },
 
-    build: function(data,index,height_weighting) {
+    build: function(data,index,height_weighting, polOrLinOrPoi) {
 	try{
         var verts = [];
-		var elements = [];
-		wrapBuilding(data,index);
+		if(polOrLinOrPoi == '1'){
+			var elements = [];
+			wrapBuilding(data,index);
 		
 			var roofOutline = createRoofOutline(data,index);		// Array of indices that the roof consists of
 			var roof = createRoofData(data,index,roofOutline);		// same, with attributes, ready for poly2tri triangulation
-		
-		var lines1 = [];
-		var lines2 = [];
-		wrapBuildingLines(data,index);
+		}
+		if(polOrLinOrPoi == '2'){
+			var lines1 = [];
+			var lines2 = [];
+			wrapBuildingLines(data,index);
+		}
+		if(polOrLinOrPoi == '3'){
+			var points1 = [];
+			pointsIndices(data, index);
+		}
 		var normals = [];
         var colors = [];
+		
+		function pointsIndices(data, index){
+			for(var i=0; i < data[index].vertices.length; i++){
+				points1[i]=i;
+			}
+		}
+		
 		
 		function wrapBuildingLines(data,index){	 //number of repeated edges equal to number of prism base -1 (cube = 3)
 				var longitud = data[index].vertices.length;
@@ -143,17 +158,31 @@ ReadyMap.BuildingNode.prototype = osg.objectInehrit(osg.Node.prototype, {
 		}
 		*/
 		function wrapBuilding(data,index){
+				var normal_out = true;
 				for(var i=0; i < data[index].vertices.length -2; i++){
 				
-				elements.push(i);
-				elements.push(i+1);
-				elements.push(i+2);
+					if(normal_out){
+						elements.push(i);
+						elements.push(i+1);
+						elements.push(i+2);
+						normal_out = !normal_out;
+					}
+					else{	//we define such differenciation in order to create the triangles in different order so that internally, the normal is determined
+							//and when using cull faces, all faces point out.
+						elements.push(i+1);
+						elements.push(i);
+						elements.push(i+2);
+						normal_out = !normal_out;
+					}
 				}
+				
+				
 				elements.push(data[index].vertices.length - 2);	//1st trinagle of last face
 				elements.push(data[index].vertices.length - 1);
-				elements.push(0);		
-				elements.push(data[index].vertices.length - 1);	//2nd trinagle of last face
 				elements.push(0);
+				
+				elements.push(0);								//2nd trinagle of last face
+				elements.push(data[index].vertices.length - 1);
 				elements.push(1);				
 		}
 		function createRoofOutline(data,index){
@@ -182,11 +211,24 @@ ReadyMap.BuildingNode.prototype = osg.objectInehrit(osg.Node.prototype, {
 			var triangles = ReadyMap.poly2tri_sweep_Triangulate(pointsAndEdges);//guardamos el array con los puntos, no indices
 				
 			
+
+			var tempChange
 			var tempx;
 			var tempy;
+			
 			//finding the indices
 				for(var i=0 ; i < triangles.length; i++){
+				//we change the order of the points that consist a trinagle, in order to make the normal point out.
+			
 					for(var j=0; j < 3; j++){
+						tempChange = triangles[i].points_[2];
+						triangles[i].points_[2] = triangles[i].points_[0];
+						triangles[i].points_[0] = tempChange;
+					}
+					for(var j=0; j < 3; j++){
+					
+					
+					
 						tempx = triangles[i].points_[j].x;
 						tempy = triangles[i].points_[j].y;
 						for (var k=0 ; k < data[index].vertices.length; k++){
@@ -251,24 +293,30 @@ ReadyMap.BuildingNode.prototype = osg.objectInehrit(osg.Node.prototype, {
         this.geometry.getAttributes().Color = new osg.BufferArray(gl.ARRAY_BUFFER, colors, 4);
         
 		
-		//var tris = new osg.DrawElements(gl.TRIANGLE_STRIP, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, elements, 1));
-		var tris = new osg.DrawElements(gl.TRIANGLES, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, elements, 1));
-        this.geometry.getPrimitives().push(tris);
+		if(polOrLinOrPoi == '1'){
+			//Planes Representation
+			var tris = new osg.DrawElements(gl.TRIANGLES, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, elements, 1));
+			this.geometry.getPrimitives().push(tris);
+			
+			
+			var tris2 = new osg.DrawElements(gl.TRIANGLES, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, roof, 1));
+			this.geometry.getPrimitives().push(tris2);
+		}
 		
-		
-		var tris2 = new osg.DrawElements(gl.TRIANGLES, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, roof, 1));
-        this.geometry.getPrimitives().push(tris2);
-		
-		
-		/*
-		//Edges Representation
-		var tris3 = new osg.DrawElements(gl.LINE_STRIP, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, lines1, 1));
-        this.geometry.getPrimitives().push(tris3);
-		
-		var tris4 = new osg.DrawElements(gl.LINE_STRIP, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, lines2, 1));
-		this.geometry.getPrimitives().push(tris4);
-		*/
-		
+		if(polOrLinOrPoi == '2'){
+			//Edges Representation
+			var lin1 = new osg.DrawElements(gl.LINE_STRIP, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, lines1, 1));
+			this.geometry.getPrimitives().push(lin1);
+			
+			var lin2 = new osg.DrawElements(gl.LINE_STRIP, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, lines2, 1));
+			this.geometry.getPrimitives().push(lin2);
+		}
+		if(polOrLinOrPoi == '3'){
+			//Edges Representation
+			var point1 = new osg.DrawElements(gl.POINTS, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, points1, 1));
+			this.geometry.getPrimitives().push(point1);
+			
+		}
 		
 		
         // put it under the localization transform:
@@ -277,7 +325,7 @@ ReadyMap.BuildingNode.prototype = osg.objectInehrit(osg.Node.prototype, {
         xform.addChild(this.geometry);
         this.addChild(xform);
 
-		this.getOrCreateStateSet().setAttributeAndMode(new osg.CullFace('DISABLE'));
+		this.getOrCreateStateSet().setAttributeAndMode(new osg.CullFace('FRONT'));
 		
 	
     }catch(err){

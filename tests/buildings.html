@@ -56,6 +56,15 @@
 				"Raton ClientY: " + mapView.viewer.manipulator.clientY + "<br/>" );
         });
 		
+		//var perim_bool = window.confirm('Do you want to apply a predefined mask ?');
+		var perim_bool = false;
+		var polOrLinOrPoi = window.prompt('Please select OpenGL mode: \r \r \t 1-> OpenGL Triangles \r \t 2-> OpenGL Lines \r \t 3-> OpenGL Points','1');
+		
+		if(polOrLinOrPoi!='1' && polOrLinOrPoi!='2' && polOrLinOrPoi!='3'){
+			alert('Error in syntax \r \r Default value 1 selected');
+			polOrLinOrPoi = '1';
+		}
+		var num_vert = 0;
 		$.ajax({													
             
 			url: "data/buildings.json",		
@@ -64,14 +73,27 @@
             success: function(data) {
 			
 				length = data.length;
-				console.log('numero de edificios: ' + data.length);
-			
-					//duplicate each vertex and place it in a predefined height
+				console.log('number of buildings: ' + data.length);
+								
+				var perim = {
+					
+					minX: -0.409296393881024,
+					minY: 39.42097506592,
+					maxX: -0.307043933478802,
+					maxY: 39.5117095976357
+				};
+				
+				var hojas = [];
+				var hoja_flag;
+				var hoja;
+				
+					//duplicates each vertex and places them in a predefined height
 					function extruding(index){
 
 							var h = data[index].altura;
 							var length2 = data[index].vertices.length * 2 ;
-														
+							num_vert = num_vert + length2;
+							
 							for(var j = 0; j < length2; j++){
 							
 								data[index].vertices[j].altura = h;
@@ -84,17 +106,51 @@
 								j++;
 							}	
 					}
-		
+				
 				for(var index=0; index<data.length ;index++){
-				extruding(index);
-                //var node = new ReadyMap.HeatMapNode(map, data, index);
-				var node = new ReadyMap.BuildingNode(map, data, index);
-                mapView.root.addChild(node);
-
+					
+					if(perim_bool){
+						if(data[index].vertices[0].lon < perim.minX || data[index].vertices[0].lon > perim.maxX 
+								|| data[index].vertices[0].lat < perim.minY || data[index].vertices[0].lat > perim.maxY){
+								continue;
+							}				
+					}
+					
+					extruding(index);
+					
+					var node = new ReadyMap.BuildingNode(map, data, index, polOrLinOrPoi);
+									
+					hoja_flag = false;
+					hoja = data[index].hoja;
+					
+					for (var i=0; i < hojas.length; i++ ){				
+						if(hoja == hojas[i]){
+							hoja_flag = true;
+						}
+					}
+					
+					if(hoja_flag){//building of an existing "hoja"
+						for(var i=1; i < mapView.root.children.length; i++){//i=0 is osgearth					
+							if(mapView.root.children[i].name == hoja){		
+								mapView.root.children[i].addChild(node);
+								continue;
+							}
+						}					
+					}
+					else{						
+						var groupNode = new osg.Node();
+						groupNode.setName(hoja);						
+						mapView.root.addChild(groupNode);						
+						mapView.root.children[mapView.root.children.length -1].addChild(node);						
+						hojas.push(hoja);
+					}					
+				}			
+				for(var i=1; i < mapView.root.children.length; i++){			
+					mapView.root.children[i].getBound();
 				}
-			}
-		
-		
+				
+				console.log('Number of vertices: ' + num_vert);
+		}
             ,
             error: function(x, y, z) {
                 alert(x.responseText);
