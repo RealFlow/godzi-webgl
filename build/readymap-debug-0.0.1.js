@@ -10990,37 +10990,37 @@ ReadyMap.GeoRSSReader.prototype = {
 */
 
 ReadyMap.HeatMapNode = function(map, data) {
-    osg.Node.call(this);
+    osg.Node.call(this); //Node that can contains child node //otherVolvoMethod.call(THIS, extColor, doorCount,  airWing, tireWidth);
     this.map = map;
     this.originLLA = {
-        lat: Math.deg2rad(data.origin.lat),
+        lat: Math.deg2rad(data.origin.lat), //pasa grados a radianes ->latitud * (2pi/360)
         lon: Math.deg2rad(data.origin.lon)
     };
     this.spacingLL = {
-        lat: Math.deg2rad(data.spacing.lat),
+        lat: Math.deg2rad(data.spacing.lat),//pasa grados a radianes ->latitud * (2pi/360)
         lon: Math.deg2rad(data.spacing.lon)
     };
-    this.extentLLA = {
-        xmin: Math.deg2rad(data.origin.lon),
+    this.extentLLA = {//crea matriz equiespaciada
+        xmin: Math.deg2rad(data.origin.lon),//ORIGEN es la Minima latitud y longitud!! => alguna esquina del cuadrado virtual, dependiendo del lugar geografico NS-EW
         xmax: Math.deg2rad(data.origin.lon + data.spacing.lon * data.numCols),
         ymin: Math.deg2rad(data.origin.lat),
         ymax: Math.deg2rad(data.origin.lat + data.spacing.lat * data.numRows)
     };
-    this.minHeight = 5.0;
-    this.maxHeight = 2500.0;
+    this.minHeight = 5.0;//threshold de altura
+    this.maxHeight = 3500.0;
 
-    this.dataArray = [];
+    this.dataArray = [];//matriz vacia para guardar atributo "value" de nuestro JSON
     for (var i = 0; i < data.data.length; ++i) {
         this.dataArray.push(parseFloat(data.data[i].value));
     }
-    this.heightField = new osgearth.HeightField(data.numCols, data.numRows, this.dataArray);
+    this.heightField = new osgearth.HeightField(data.numCols, data.numRows, this.dataArray);//LLAMA al constructor HeightField en HeightField.js pasando los atributos calculados.
 
     for (var times = 0; times < 2; times++) {
         for (var col = 1; col < data.numCols - 2; col++) {
             for (var row = 1; row < data.numRows - 2; row++) {
                 var a =
-                    this.heightField.getHeight(col - 1, row - 1) +
-                    this.heightField.getHeight(col, row - 1) +
+                    this.heightField.getHeight(col - 1, row - 1) +//suma los valores altura de los 8 elementos q tocan cada pixel interior
+                    this.heightField.getHeight(col, row - 1) +//los elementos frontera (0,0) no los coge, por eso empieza en "col=1" y termina en "col < data.numCols - 2" (idem con rows)
                     this.heightField.getHeight(col + 1, row - 1) +
                     this.heightField.getHeight(col - 1, row) +
                     this.heightField.getHeight(col, row) +
@@ -11028,7 +11028,7 @@ ReadyMap.HeatMapNode = function(map, data) {
                     this.heightField.getHeight(col - 1, row + 1) +
                     this.heightField.getHeight(col, row + 1) +
                     this.heightField.getHeight(col + 1, row + 1);
-                this.heightField.setHeight(col, row, a/8);
+                this.heightField.setHeight(col, row, a/8);// esos 9 valores los suma y divide entre 8 y se le asigna al pixel central. Average!! primer elemento 28800/8 =3600
             }
         }
     }
@@ -11078,7 +11078,7 @@ ReadyMap.HeatMapNode.prototype = osg.objectInehrit(osg.Node.prototype, {
         var colors = [];
 
         // anchor point in world coords
-        var centerWorld = this.map.lla2world([this.originLLA.lon, this.originLLA.lat, 0]);
+        var centerWorld = this.map.lla2world([this.originLLA.lon, this.originLLA.lat, 0]);//convierte LLA[lon,lat,alt] a Geocentricas[x,y,z]
 
         // local-to-world transform matrix
         var local2world = this.map.threeD ?
@@ -11530,6 +11530,395 @@ ReadyMap.BuildingNode.prototype = osg.objectInehrit(osg.Node.prototype, {
 ReadyMap.BuildingNode.prototype.objectType = osg.objectType.generate("BuildingNode");
 
 osg.CullVisitor.prototype[ReadyMap.BuildingNode.prototype.objectType] = function(node) {
+    if (node.stateset)
+        this.pushStateSet(node.stateset);
+
+    this.traverse(node);
+
+    if (node.stateset)
+        this.popStateSet();
+};
+
+
+
+
+/*
+ * Daniel Gaston
+ * 
+ * Add Buildings functionality for ReadyMap/WebGL
+ * 
+ * License: LGPL
+*/
+ReadyMap.BuildingNode2 = function(map, data, polOrLinOrPoi, buil_start, buil_fin) {
+
+    osg.Node.call(this);
+	var height_weighting = 10;	//vertical exaggeration
+    this.map = map;
+	
+    this.originLLA = { 
+
+		lat: Math.deg2rad(data[buil_start].vertices[0].lat),
+        lon: Math.deg2rad(data[buil_start].vertices[0].lon)
+    };
+	this.heightField = [];
+
+	this.build(data,height_weighting, polOrLinOrPoi, buil_start, buil_fin);
+};
+
+
+ReadyMap.BuildingNode2.prototype = osg.objectInehrit(osg.Node.prototype, {
+
+    insertArray: function(from, to, toIndex) {
+        for (var i = 0; i < from.length; i++) {
+            to[toIndex + i] = from[i];
+        }
+    },
+	
+	rampColor: function(height,height_weighting) {
+	
+		if (height <= 2 * height_weighting){
+			var c =[0,0,0,1]
+		}
+		else if(height <= 9 * height_weighting){
+			var c =[0,0,1,1]
+		}
+		else if(height <= 15 * height_weighting){
+			var c =[0,1,0,1]
+		}
+		else if(height <= 30 * height_weighting){
+			var c =[1,1,0,1]
+		}
+		else if(height <= 60 * height_weighting){
+			var c =[1,0.46,0,1]
+		}
+		else{
+			var c = [1,0,0,1];
+		}
+		    
+        return c;
+    },
+
+    build: function(data,height_weighting, polOrLinOrPoi, buil_start, buil_fin) {
+	
+        var verts = [];
+		
+			if(polOrLinOrPoi == '1'){
+				var elements = [];
+				var last_index = 0;
+				
+				
+				var roof = [];//Stores roof´s triangle elements
+				for(var index = buil_start; index < buil_fin; index++){
+				
+					var roofOutline = [];
+					var misDatosTecho = [];
+					
+					var lon = wrapBuilding(data,index, elements, last_index); //draws buildings side faces
+					createRoofOutline(data,index,last_index, roofOutline);
+				
+					// Array of indices that a roof consists of
+					createRoofData(data,index,misDatosTecho,roof, last_index,roofOutline);
+					last_index = last_index + lon;
+					
+				}
+			}	
+		if(polOrLinOrPoi == '2'){
+			var lines1 = [];
+			var lines2 = [];
+			wrapBuildingLines(data, buil_start, buil_fin);
+		}
+		if(polOrLinOrPoi == '3'){
+			var points1 = [];
+			pointsIndices(data, buil_start, buil_fin);
+		}
+		var normals = [];
+        var colors = [];
+		
+		
+		function pointsIndices(data, buil_start, buil_fin){
+			var last_index=0;
+			
+			for(var index = buil_start; index < buil_fin; index++){
+				for(var i=0; i < data[index].vertices.length; i++){
+					
+					if(data[index].vertices[i].lon == -0.323081){
+						console.log('puerto de valencia en index: '+index);
+					}
+					points1.push(last_index);
+					last_index++;
+					
+				}			
+			}
+			
+		}
+		
+		function wrapBuildingLines(data, buil_start, buil_fin){	 //number of repeated edges equal to number of prism base -1 (cube = 3)
+			var last_index=0;
+			
+			for(var index = buil_start; index < buil_fin; index++){
+				var longitud = data[index].vertices.length;
+				
+					if(longitud % 2 != 0){
+					console.log('edificio ' + index + ' tiene longitud impar');
+					}
+						var parIgual = false;
+						var imparAdelantado = true;
+						lines1.push(last_index + 0);
+						lines2.push(last_index + 0);
+						lines1.push(last_index + 1); 
+						lines2.push(last_index + 2);
+						lines1.push(last_index + 1); 
+						lines2.push(last_index + 2);
+						for(var i=2; i < longitud -1 ; i++){//both lines share element 0 and 1
+						
+							if(i % 2 !== 0){
+								if(!imparAdelantado){
+									lines1.push(i + last_index);
+									lines1.push(i + last_index);
+									lines2.push(i + last_index + 1);
+									lines2.push(i + last_index + 1);
+									imparAdelantado = !imparAdelantado;
+								}
+								else{
+									lines1.push(i + last_index - 1);
+									lines1.push(i + last_index - 1);
+									lines2.push(i + last_index + 2);
+									lines2.push(i + last_index + 2);
+									imparAdelantado = !imparAdelantado;							
+								}
+							}						
+							else{
+								if(!parIgual){
+									lines1.push(i + last_index + 1);
+									lines1.push(i + last_index + 1);
+									lines2.push(i + last_index + 1);
+									lines2.push(i + last_index + 1);
+									parIgual = !parIgual;
+								}
+								else{
+									lines1.push(i + last_index);
+									lines1.push(i + last_index);
+									lines2.push(i + last_index);
+									lines2.push(i + last_index);
+									parIgual = !parIgual;							
+								}
+							
+							}
+							
+						}
+				
+				//depends on the prism base relying upon it is odd or even
+				if((longitud/2) % 2 == 0) {//even number prism base
+				lines1.push(last_index + i-1);
+				lines1.push(last_index + i-1);
+				lines2.push(last_index + 1);
+				lines1.push(last_index + 0);
+				
+				}
+				else{
+				lines1.push(last_index + i);
+				lines1.push(last_index + i);
+				lines2.push(last_index + 0);
+				lines1.push(last_index + 1);
+				
+				}
+				last_index = last_index + longitud;
+			}
+		}
+
+		function wrapBuilding(data,index, elements, last_index){
+							
+				var normal_out = true;
+				for(var i=0; i < data[index].vertices.length -2; i++){
+				
+					if(normal_out){
+						elements.push(last_index + i);
+						elements.push(last_index + i+1);
+						elements.push(last_index + i+2);
+						normal_out = !normal_out;
+						
+					}
+					else{	//we define such differentiation in order to create the triangles in different order so that internally, the cull face is determined, pointing out
+						elements.push(last_index + i+1);
+						elements.push(last_index + i);
+						elements.push(last_index + i+2);
+						normal_out = !normal_out;
+						
+					}
+				}
+							
+				elements.push(last_index + data[index].vertices.length - 2);	//1st trinagle of last face
+				elements.push(last_index + data[index].vertices.length - 1);
+				elements.push(last_index);
+				
+				elements.push(last_index);										//2nd trinagle of last face
+				elements.push(last_index + data[index].vertices.length - 1);
+				elements.push(last_index + 1);
+				
+				return data[index].vertices.length;				
+		}
+		function createRoofOutline(data,index,last_index, roofOutline){
+							
+				for(var i=0; i < data[index].vertices.length ; i=i+2){ //even vertices conform the roof
+			
+					roofOutline.push(last_index + i);
+					temp = new ReadyMap.poly2tri_Point(parseFloat(data[index].vertices[i].lon), parseFloat(data[index].vertices[i].lat))
+					misDatosTecho.push(temp);
+				}				
+		}
+		
+		function createRoofData(data,index,misDatosTecho,roof, last_index,roofOutline){
+			
+			var misDatosTriangulacion = new Array();
+			
+			//prepare sweep Context
+			var pointsAndEdges = new ReadyMap.poly2tri_SweepContext(misDatosTecho);
+        
+			// triangulate
+			try{
+			var triangles = ReadyMap.poly2tri_sweep_Triangulate(pointsAndEdges);//guardamos el array con los puntos, no indices
+				
+			
+			}catch(err){
+				console.log('Roof failure creation, building: '+index);
+				}
+		
+			if(triangles){
+			var tempChange
+			var tempx;
+			var tempy;
+			
+			//finding indices
+				for(var i=0 ; i < triangles.length; i++){
+				//we change the order of the points that consist a triangle, in order to make the normal point out.
+				
+					tempChange = triangles[i].points_[2];
+						triangles[i].points_[2] = triangles[i].points_[0];
+						triangles[i].points_[0] = tempChange;
+					
+					var check = 0;
+					
+					for(var j=0; j < 3; j++){
+	
+						tempx = triangles[i].points_[j].x;
+						tempy = triangles[i].points_[j].y;
+						for (var k=0 ; k < data[index].vertices.length; k+=2){//k+=2 due to points with same coordinates. The first one is always the one whic carries roof height info
+							if((tempx == data[index].vertices[k].lon) && (tempy == data[index].vertices[k].lat )){
+								roof.push(last_index + k);// array with triangles indices
+								check++;
+								break;
+							}					
+						}
+					}
+					if (check != 3){
+						window.alert('Triangle point retrieving Error. Building: ' + index);
+					}
+				}
+			}else{
+			//window.alert('Triangle point retrieving Error. Building: ' + index); //redundant. ReadyMap.poly2tri_sweep_Triangulate is already within try-catch 
+			}		
+		}
+		
+
+        // anchor point in world coords
+        var centerWorld = this.map.lla2world([this.originLLA.lon, this.originLLA.lat, 0]);
+
+        // local-to-world transform matrix
+        var local2world = this.map.threeD ?
+            this.map.profile.ellipsoid.local2worldFromECEF(centerWorld) :
+            osg.Matrix.makeTranslate(this.centerWorld[0], this.centerWorld[1], this.centerWorld[2]);
+
+        // world-to-local transform matrix:
+        var world2local = [];
+        osg.Matrix.inverse(local2world, world2local);
+		
+		var v = 0, c = 0, vi = 0,n_v = 0;
+
+		
+		for(var index =buil_start ; index < buil_fin; index++){
+				for(var i=0; i < data[index].vertices.length; i++){
+		
+		
+				this.heightField.push(parseFloat(data[index].vertices[i].altura) * height_weighting);
+        
+			
+                var height = this.heightField[vi];
+				var lla = [Math.deg2rad(data[index].vertices[i].lon), Math.deg2rad(data[index].vertices[i].lat), height];
+                var world = this.map.lla2world(lla);
+                var vert = osg.Matrix.transformVec3(world2local, world, []);																	
+                this.insertArray(vert, verts, v);
+
+                // todo: fix for elevation
+                var normal = this.map.geocentric ? osg.Vec3.normalize(vert, []) : [0, 0, 1]; //PENDING
+                this.insertArray(normal, normals, v);
+                v += 3;
+
+				
+				var color = this.rampColor(height,height_weighting);									
+
+                this.insertArray(color, colors, c);
+                c += 4;
+				
+                vi++;
+				n_v++;
+	
+		}
+		}
+		
+        this.geometry = new osg.Geometry();
+        this.geometry.getAttributes().Vertex = new osg.BufferArray(gl.ARRAY_BUFFER, verts, 3);
+        this.geometry.getAttributes().Normal = new osg.BufferArray(gl.ARRAY_BUFFER, normals, 3);
+        this.geometry.getAttributes().Color = new osg.BufferArray(gl.ARRAY_BUFFER, colors, 4);
+        
+		
+		if(polOrLinOrPoi == '1'){
+			//Planes Representation
+			var tris = new osg.DrawElements(gl.TRIANGLES, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, elements, 1));
+			this.geometry.getPrimitives().push(tris);
+			
+			
+			var tris2 = new osg.DrawElements(gl.TRIANGLES, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, roof, 1));
+			this.geometry.getPrimitives().push(tris2);
+		}
+		
+		if(polOrLinOrPoi == '2'){
+			//Edges Representation
+			var lin1 = new osg.DrawElements(gl.LINES, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, lines1, 1));
+			this.geometry.getPrimitives().push(lin1);
+			
+			var lin2 = new osg.DrawElements(gl.LINES, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, lines2, 1));
+			this.geometry.getPrimitives().push(lin2);
+		}
+		if(polOrLinOrPoi == '3'){
+			//Edges Representation
+			var point1 = new osg.DrawElements(gl.POINTS, new osg.BufferArray(gl.ELEMENT_ARRAY_BUFFER, points1, 1));
+			this.geometry.getPrimitives().push(point1);
+			
+		}
+		
+		
+        // put it under the localization transform:
+        var xform = new osg.MatrixTransform();
+        xform.setMatrix(local2world);
+        xform.addChild(this.geometry);
+        this.addChild(xform);
+
+		this.getOrCreateStateSet().setAttributeAndMode(new osg.CullFace('FRONT')); //culling mode changed to FRONT
+
+	},
+
+    traverse: function(visitor) {
+        var n = this.children.length;
+        for (var i = 0; i < n; i++) {
+            this.children[i].accept(visitor);
+        }
+    }
+
+});
+
+ReadyMap.BuildingNode2.prototype.objectType = osg.objectType.generate("BuildingNode");
+
+osg.CullVisitor.prototype[ReadyMap.BuildingNode2.prototype.objectType] = function(node) {
     if (node.stateset)
         this.pushStateSet(node.stateset);
 
@@ -13653,9 +14042,6 @@ ReadyMap.poly2tri_sweep_FlipScanEdgeEvent = function(tcx, ep, eq, flip_triangle,
         ReadyMap.poly2tri_sweep_FlipScanEdgeEvent(tcx, ep, eq, flip_triangle, ot, newP);
     }
 }
-
-
-
 /**
 * ReadyMap/WebGL
 * (c) Copyright 2011 Pelican Mapping

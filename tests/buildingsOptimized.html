@@ -15,16 +15,17 @@
     var mapView;
 
     ReadyMap.init(function() {											
-        var map = new ReadyMap.Map(); 									
-        map.addImageLayer(new ReadyMap.TMSImageLayer(					
-			{															
+        var map = new ReadyMap.Map(); 
+		
+        map.addImageLayer(new ReadyMap.TMSImageLayer(							
+			{		
             name: "Landsat",
             url: "http://readymap.org/readymap/tiles/1.0.0/22/",		
-            tmsType: "google"
+            tmsType: "google"			
 			}
-		));
-
-
+			
+		)
+		);
         // create a view tied to a page element:
         var size = ReadyMap.getWindowSize();							
         var headerHeight = jQuery('#header').height();					
@@ -56,36 +57,24 @@
 				"Raton ClientY: " + mapView.viewer.manipulator.clientY + "<br/>" );
         });
 		
-		var perim_bool = window.confirm('Do you want to apply a predefined mask ?');
-		//var perim_bool = false;
 		var polOrLinOrPoi = window.prompt('Please select OpenGL mode: \r \r \t 1-> OpenGL Triangles \r \t 2-> OpenGL Lines \r \t 3-> OpenGL Points','1');
 		
 		if(polOrLinOrPoi!='1' && polOrLinOrPoi!='2' && polOrLinOrPoi!='3'){
-			alert('Error in syntax \r \r Default value 1 selected');
-			polOrLinOrPoi = '1';
+			alert('Error in syntax \r \r Default value 3 selected');
+			polOrLinOrPoi = '3';
 		}
+			
 		var num_vert = 0;
 		$.ajax({													
             
-			url: "data/buildings.json",		
+			url: "data/buildings.json",
+					
             processData: true,
             dataType: "json",
             success: function(data) {
 			
 				length = data.length;
-				console.log('number of buildings: ' + data.length);
-								
-				var perim = {
-					
-					minX: -0.409296393881024,
-					minY: 39.42097506592,
-					maxX: -0.307043933478802,
-					maxY: 39.5117095976357
-				};
-				
-				var hojas = [];
-				var hoja_flag;
-				var hoja;
+				console.log('Total number of buildings: ' + data.length);
 				
 					//duplicates each vertex and places them in a predefined height
 					function extruding(index){
@@ -93,7 +82,7 @@
 							var h = data[index].altura;
 							var length2 = data[index].vertices.length * 2 ;
 							num_vert = num_vert + length2;
-							
+							num_buil++;
 							for(var j = 0; j < length2; j++){
 							
 								data[index].vertices[j].altura = h;
@@ -104,62 +93,39 @@
 								data[index].vertices.splice(j+1,0, temp);
 								
 								j++;
-							}	
+							}					
 					}
 				
-				for(var index=0; index<data.length ;index++){
-					
-					if(perim_bool){
-						if(data[index].vertices[0].lon < perim.minX || data[index].vertices[0].lon > perim.maxX 
-								|| data[index].vertices[0].lat < perim.minY || data[index].vertices[0].lat > perim.maxY){
-								continue;
-							}				
-					}
-					
+				var num_buil = 0;		//total number of buildings
+				var num_buff_choice = 2;//for some reason num_buff_choice = 1 does not work fine. memory overflow??
+				var dif_buff;			//amount of buildings to be processed
+				var buil_start = 0;		//first building to be processed
+				var buil_fin = 0;		//last building to be processed
+				
+				for(var index=0; index<data.length ;index++){	
 					extruding(index);
+				}				
+					dif_buff =  Math.floor((num_buil /num_buff_choice));//TODO. NOT CORRECT depending on num_buff_choice value.	just for testing purposes		
 					
-					var node = new ReadyMap.BuildingNode(map, data, index, polOrLinOrPoi);
-									
-					hoja_flag = false;
-					hoja = data[index].hoja;
+					for(var i=0; i < num_buff_choice; i++){
 					
-					for (var i=0; i < hojas.length; i++ ){				
-						if(hoja == hojas[i]){
-							hoja_flag = true;
-						}
+						buil_start = buil_fin;
+						buil_fin = buil_fin + dif_buff;
+					
+						var node = new ReadyMap.BuildingNode2(map, data, polOrLinOrPoi, buil_start, buil_fin);	
+						mapView.root.addChild(node);
 					}
-					
-					if(hoja_flag){//building of an existing "hoja"
-						for(var i=1; i < mapView.root.children.length; i++){//i=0 is osgearth					
-							if(mapView.root.children[i].name == hoja){		
-								mapView.root.children[i].addChild(node);
-								continue;
-							}
-						}					
-					}
-					else{						
-						var groupNode = new osg.Node();
-						groupNode.setName(hoja);						
-						mapView.root.addChild(groupNode);						
-						mapView.root.children[mapView.root.children.length -1].addChild(node);						
-						hojas.push(hoja);
-					}					
-				}			
-				for(var i=1; i < mapView.root.children.length; i++){			
-					mapView.root.children[i].getBound();
-				}
-				
-				console.log('Number of vertices: ' + num_vert);
-		}
-            ,
+			console.log('Total number of vertices: ' + num_vert);
+			}			
+		,
             error: function(x, y, z) {
                 alert(x.responseText);
-            }
+            }    
         });
     });
 
 function gotoValencia() {
-        mapView.viewer.getManipulator().setViewpoint(39.45599538921077,  -0.388229670237747, 2212, 35, -39.5, 6000, 5);
+        mapView.viewer.getManipulator().setViewpoint(39.45599538921077,  -0.388229670237747, 2212, 35, -39.5, 6000, 7);
     }
 
 
