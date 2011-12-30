@@ -91,8 +91,8 @@
 			color_choice = '0';
 		}
 		var num_buff_choice = window.prompt('Please select the number of children to add to the scene graph: \r \r     - Select a number between 1 and 4897  \r     - Adding just 1 child may cause memory overflow  \r     - It is highly recommendable choosing a very low number of children (2,3,4...)','2');
-		
-		if(parseInt(num_buff_choice) < 2 || parseInt(num_buff_choice) > 4897 || parseInt(num_buff_choice) == 'NaN' || parseInt(num_buff_choice) == 'Undefined'){
+		num_buff_choice = parseInt(num_buff_choice);
+		if(num_buff_choice < 2 || num_buff_choice > 4897){
 			alert('Error in syntax \r \r Default value 2 selected');
 			num_buff_choice = '2';
 		}
