@@ -9,7 +9,7 @@
 ReadyMap.BuildingNode = function(map, data, polOrLinOrPoi, buil_start, buil_end,color_choice) {
 
     osg.Node.call(this);
-	var height_weighting = 10;	//vertical exaggeration
+	var height_weighting = 1;	//vertical exaggeration
     this.map = map;
 	
     this.originLLA = { 

@@ -1,0 +1,267 @@
+﻿<html>
+<head>
+<title>ReadyMap WebGL</title>
+
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+<script type="text/javascript" src="../js/jquery/jquery-1.4.2.js"></script>
+<script type="text/javascript" src="../js/jquery/jquery-ui-1.8.2.custom.min.js"></script>
+<script type="text/javascript" src="../build/readymap-debug-0.0.1.js"></script>
+
+<link href="demo.css" rel="Stylesheet" type="text/css"></link>
+<link href="../css/ui-lightness/jquery.ui.all.css" rel="stylesheet" type="text/css"></link>
+<link href="../css/readymap.css" rel="Stylesheet" type="text/css"></link>
+
+<script type="text/javascript">
+
+    var mapView;
+	var layerSwitcher;
+	
+    ReadyMap.init(function() {											
+        var map = new ReadyMap.Map({
+                minElevation: 0.0
+            });
+
+       map.addImageLayer(new ReadyMap.TMSImageLayer({ //Landsat imagery
+                name: "Landsat",
+                url: "http://readymap.org/readymap/tiles/1.0.0/22/",
+                tmsType: "google"
+            })); 
+			
+		map.addImageLayer(new ReadyMap.TMSImageLayer({ 
+                name: "OSM",
+                url: "http://readymap.org/readymap/tiles/1.0.0/23/",
+				imageType: "png",
+                tmsType: "google"
+            }));
+			
+/*		
+		map.addImageLayer(new ReadyMap.WMSImageLayer({ //PNOA imagery
+            name: "PNOA",
+            url: "http://www.idee.es/wms/PNOA/PNOA",			
+			layers: "pnoa",
+			format: "image/jpeg"            
+			}));
+*/			
+/*
+        map.addElevationLayer(new ReadyMap.TMSElevationLayer({ // SRTM elevation
+                name: "Elevation",
+                url: "http://readymap.org/readymap/tiles/1.0.0/9",
+                args: "json=true",
+                tmsType: "google"
+            }));
+*/		
+        // create a view tied to a page element:
+        var size = ReadyMap.getWindowSize();							
+        var headerHeight = jQuery('#header').height();					
+        size.h -= headerHeight;											
+
+        mapView = new ReadyMap.MapView("3DView", size, map,{ verticalScale: 3.0 });			
+		mapView.viewer.view.setNearFarRatio(0.000001);
+        //Add some controls
+        var zoom = new ReadyMap.Controls.Zoom(mapView, "ViewContainer");
+																		
+        var pan = new ReadyMap.Controls.Pan(mapView, "ViewContainer");	
+
+        // display the Lat/Long:
+        mapView.addFrameEndCallback(function() {						
+            var viewMatrix = mapView.viewer.view.getViewMatrix();
+            viewMatrix = osg.Matrix.inverse(viewMatrix);
+            var eye = [];
+            osg.Matrix.getTrans(viewMatrix, eye);						
+            var lla = map.profile.ellipsoid.ecef2lla(eye);				//return [lon, lat, alt];
+            lla[0] = Math.rad2deg(lla[0]);								//lon
+            lla[1] = Math.rad2deg(lla[1]);								//lat
+            jQuery("#Coords").html(										
+                "Lat: " + lla[1].toFixed(6) + "\u00B0" + "  Lon = " + lla[0].toFixed(6) + "\u00B0" + "Alt: " + lla[2].toFixed(2) +" m" +"<br/>" + //JS Number Class-> number.toFixed(x)= Formats a number with x numbers of digits after the decimal point
+                "Azim: " + Math.rad2deg(mapView.viewer.manipulator.localAzim).toFixed(1) + "\u00B0" +
+                "Pitch:" + Math.rad2deg(mapView.viewer.manipulator.localPitch).toFixed(1) + "\u00B0" + "<br/>" +
+                "Tiles: " + map.drawListSize + "<br/>");
+        });
+		//gotoValencia();
+		
+		
+		
+		
+		
+		
+		//var isCadastre = window.confirm('Do you want to represent cadastre buildings?');
+		var isCadastre = true;
+		//var isFIDE = window.confirm('Do you want to represent FIDE buildings?');
+		var isFIDE = true;
+		
+		if(isCadastre){
+		//var polOrLinOrPoi = window.prompt('Please select OpenGL mode for CADASTRE BUILDINGS: \r \r     1 - OpenGL Triangles \r     2 - OpenGL Lines \r     3 - OpenGL Points','1');
+		var polOrLinOrPoi ='1';
+		if(polOrLinOrPoi!='1' && polOrLinOrPoi!='2' && polOrLinOrPoi!='3'){
+			alert('Error in syntax \r \r Default value 3 selected');
+			polOrLinOrPoi = '3';
+		}
+
+		//var color_choice = window.prompt('Please select a thematic representation CADASTRE BUILDINGS: \r \r     0 - Height color theme \r     1 - Cadastre Area color theme','0');
+		var color_choice = '0';
+		if(color_choice!='0' && color_choice!='1'){
+			alert('Error in syntax \r \r Default value 0 selected');
+			color_choice = '0';
+		}
+	
+		//var num_buff_choice = window.prompt('Please select the number of children to add to the scene graph: \r \r     - Select a number between 1 and 4897  \r     - Adding just 1 child may cause memory overflow  \r     - It is highly recommendable choosing a very low number of children (2,3,4...)','2');
+		var num_buff_choice = '2';
+		num_buff_choice = parseInt(num_buff_choice);
+		if(num_buff_choice < 2 || num_buff_choice > 4897){
+			alert('Error in syntax \r \r Default value 2 selected');
+			num_buff_choice = '2';
+		}
+		
+		var num_vert = 0;
+		$.ajax({													
+            
+			url: "data/buildings.json",				
+            processData: true,
+            dataType: "json",
+            success: function(data) {
+			
+				length = data.length;
+				console.log('Total number of buildings: ' + data.length);
+				
+					//duplicates each vertex and places them in a predefined height
+					function extruding(index){
+
+							var h = data[index].altura;
+							var length2 = data[index].vertices.length * 2 ;
+							num_vert = num_vert + length2;
+							num_buil++;
+							for(var j = 0; j < length2; j++){
+							
+								data[index].vertices[j].altura = h;
+								var temp = {lon: data[index].vertices[j].lon,
+											lat: data[index].vertices[j].lat,
+											altura: 0
+											};
+								data[index].vertices.splice(j+1,0, temp);
+								
+								j++;
+							}					
+					}
+				
+				var num_buil = 0;		//total number of buildings,4897, index 4896 is the last one because building 0 also counts.
+				var dif_buff;			//amount of buildings to be processed
+				var buil_start = 0;		//first building to be processed
+				var buil_end = 0;		//last building to be processed
+				var temp_buil;			//temporal value
+				var buildToAdd;			//extra building counter
+				
+				for(var index=0; index<data.length ;index++){	
+					extruding(index);
+				}
+		
+				dif_buff =  Math.floor((num_buil /num_buff_choice));
+				temp_buil = dif_buff * num_buff_choice;
+				buildToAdd = num_buil - temp_buil;
+							
+					for(var i=0; i < num_buff_choice; i++){
+					
+						buil_start = buil_end;
+						
+						if(buildToAdd > 0){
+							buil_end = buil_end + dif_buff + 1;
+							buildToAdd--
+						}
+						else{
+							buil_end = buil_end + dif_buff;
+						}
+						var node = new ReadyMap.BuildingNode(map, data, polOrLinOrPoi, buil_start, buil_end,color_choice);	
+						mapView.root.addChild(node);
+					}
+					
+			console.log('Total number of vertices: ' + num_vert);
+					
+			}			
+		,
+            error: function(x, y, z) {
+                alert(x.responseText);
+            }    
+        });
+		
+		
+		
+		}
+		
+		if(isFIDE){
+		var polOrLinOrPoi2 = window.prompt('Please select OpenGL mode for FIDE BUILDINGS: \r \r     1 - OpenGL Triangles \r     2 - OpenGL Lines \r     3 - OpenGL Points','1');
+		
+		if(polOrLinOrPoi2!='1' && polOrLinOrPoi2!='2' && polOrLinOrPoi2!='3'){
+			alert('Error in syntax \r \r Default value 3 selected');
+			polOrLinOrPoi2 = '3';
+		}
+		var color_choice2 = window.prompt('Please select a thematic representation for FIDE BUILDINGS: \r \r     0 - Height color theme \r     1 - Varied color theme\r     2 - Greyscale color theme','0');
+		
+		
+		if(color_choice2!='0' && color_choice2!='1'&& color_choice2!='2'){
+			alert('Error in syntax \r \r Default value 0 selected');
+			color_choice2 = '0';
+		}
+		
+		
+		
+		
+		
+		
+		for(var i = 0; i<7; i++){	
+		$.ajax({													
+            
+			url: "data/FIDE/FIDE" + i + ".json",			
+            processData: true,
+            dataType: "json",
+            success: function(data) {
+			
+				length = data.length;
+				console.log('Total number of faces: ' + data.length);
+				
+				
+				
+				var node = new ReadyMap.FIDEBuildingNode(map, data, polOrLinOrPoi2,color_choice2);	
+				mapView.root.addChild(node);
+					
+					
+			
+					
+			}			
+		,
+            error: function(x, y, z) {
+                alert(x.responseText);
+            }    
+        });
+		}
+	}
+		
+		
+		
+	layerSwitcher = new ReadyMap.Controls.LayerSwitcher("LayerSwitcher", map);
+    jQuery("#LayerSwitcher").draggable();
+	
+	delete polOrLinOrPoi, color_choice, num_buff_choice, num_vert;
+    });
+
+function gotoValencia() {
+        mapView.viewer.getManipulator().setViewpoint(39.45599538921077,  -0.388229670237747, 2612, 0, -29.5, 11000, 4);
+    }
+	
+</script>
+</head>
+
+<body>
+ 
+  <div id="ViewContainer">
+    <canvas id="3DView"></canvas>
+  </div>
+  <div id="Help">
+    <ul>
+	  <li><a href="#" onclick="gotoValencia();">Fly to Valencia</a></li>      
+    </ul>
+	<div id="LayerSwitcher" class="ui-widget-content">
+    </div>
+  </div>
+  <div id="Coords">
+  </div>
+</body>
+</html>
