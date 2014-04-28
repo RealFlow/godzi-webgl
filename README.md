@@ -7,7 +7,7 @@ Screenshots
 <img src="http://imgur.com/g4rEdQW.jpg" width="600"/>
 </div>
 
-![checkitout](http://imgur.com/g4Dg02C)
+![checkitout](http://imgur.com/g4Dg02C.jpg)
 
 ![checkitout](http://imgur.com/tNayYyj)
 
