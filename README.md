@@ -3,8 +3,9 @@ ReadyMap Building Visualization
 
 Screenshots
 -----------
-
-![checkitout](http://imgur.com/g4rEdQW)
+<div align="center">
+<img src="http://imgur.com/g4rEdQW" width="600"/>
+</div>
 
 ![checkitout](http://imgur.com/g4Dg02C)
 
