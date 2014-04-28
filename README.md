@@ -4,7 +4,7 @@ ReadyMap Building Visualization
 Screenshots
 -----------
 <div align="center">
-<img src="http://imgur.com/g4rEdQW" width="600"/>
+<img src="http://imgur.com/g4rEdQW.jpg" width="600"/>
 </div>
 
 ![checkitout](http://imgur.com/g4Dg02C)
