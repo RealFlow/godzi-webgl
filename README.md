@@ -3,17 +3,16 @@ ReadyMap Building Visualization
 
 Screenshots
 -----------
-<div align="center">
-<img src="http://imgur.com/g4rEdQW.jpg" width="600"/>
-</div>
+
+![checkitout](http://imgur.com/g4rEdQW.jpg)
 
 ![checkitout](http://imgur.com/g4Dg02C.jpg)
 
-![checkitout](http://imgur.com/tNayYyj)
+![checkitout](http://imgur.com/tNayYyj.jpg)
 
-![checkitout](http://imgur.com/qohiosb)
+![checkitout](http://imgur.com/qohiosb.jpg)
 
-![checkitout](http://imgur.com/aQ98lSp)
+![checkitout](http://imgur.com/aQ98lSp.jpg)
 
 Data
 -----
